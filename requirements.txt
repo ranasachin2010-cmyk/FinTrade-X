@@ -6,3 +6,4 @@ textblob
 plotly
 requests
 streamlit-autorefresh
+scikit-learn
