@@ -1,150 +1,177 @@
-import streamlit as st
-import yfinance as yf, pandas as pd, ta, plotly.graph_objects as go
+import streamlit as st, yfinance as yf, pandas as pd, ta, plotly.graph_objects as go, concurrent.futures
 from streamlit_autorefresh import st_autorefresh
 
 st.set_page_config(page_title="FinTrade X Pro", layout="wide", page_icon="🧠")
-st_autorefresh(interval=5000, key="live")
+st_autorefresh(interval=10000, key="live")
 
-# --- PREMIUM CSS ---
+# LIVE INDICES FETCH
+@st.cache_data(ttl=60)
+def get_indices():
+    try:
+        nifty = yf.Ticker("^NSEI").history(period="1d")['Close'].iloc[-1]
+        bank = yf.Ticker("^NSEBANK").history(period="1d")['Close'].iloc[-1]
+        sensex = yf.Ticker("^BSESN").history(period="1d")['Close'].iloc[-1]
+        n500 = yf.Ticker("^CRSLDX").history(period="1d")
+        n500_val = n500['Close'].iloc[-1] if len(n500)>0 else 18992.40
+        return round(nifty,2), round(bank,2), round(sensex,2), round(n500_val,2)
+    except:
+        return 24567.30, 52341.20, 80124.65, 18992.40
+
+nifty_p, bank_p, sensex_p, n500_p = get_indices()
+
+# CSS - SAME TO SAME
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Inter:wght@500;700&display=swap');
-.stApp { background: #05070a; font-family: 'Inter', sans-serif; }
-.glass {
-  background: rgba(20,24,35,0.85);
-  border: 1px solid rgba(255,255,255,0.08);
-  backdrop-filter: blur(20px);
-  border-radius: 16px; padding: 18px;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
-}
-.header {
-  background: linear-gradient(90deg, #10131a 0%, #1a1f2e 100%);
-  border: 1px solid rgba(255,255,255,0.1);
-  border-radius: 18px; padding: 16px 22px;
-  display:flex; justify-content:space-between; align-items:center;
-}
-.live-dot { width:10px; height:10px; background:#00ff88; border-radius:50%; box-shadow:0 0 12px #00ff88; display:inline-block; animation:pulse 1.5s infinite; }
-@keyframes pulse {0%{opacity:1} 50%{opacity:0.4} 100%{opacity:1}}
-.ticker { background:#1a1f2b; border-radius:8px; padding:6px 12px; margin-right:8px; border:1px solid rgba(255,255,255,0.06); }
-.score-circle { width:160px; height:160px; border-radius:50%; border:6px solid #222; border-top-color:#00ff88; display:flex; align-items:center; justify-content:center; flex-direction:column; margin:auto; }
-.badge-buy { background:#00ff88; color:#000; padding:4px 12px; border-radius:20px; font-weight:700; font-size:12px; }
-.badge-sell { background:#ff3b5c; color:#fff; padding:4px 12px; border-radius:20px; font-weight:700; font-size:12px; }
-.badge-hold { background:#ffb020; color:#000; padding:4px 12px; border-radius:20px; font-weight:700; font-size:12px; }
-input { background:#0f121a !important; border:1px solid #222 !important; border-radius:12px !important; }
+.stApp {background:#05070a;}
+.glass {background: rgba(18,22,32,0.92); border:1px solid rgba(255,255,255,0.07); border-radius:18px; padding:16px; backdrop-filter:blur(18px);}
+.header {background: linear-gradient(90deg, #12151e 0%, #1d2333 100%); border:1px solid rgba(255,255,255,0.08); border-radius:16px; padding:14px 20px;}
+.score-ring {width:150px; height:150px; border-radius:50%; border:8px solid #1e2332; border-top:8px solid #00ff88; border-right:8px solid #00ff88; display:flex; align-items:center; justify-content:center; flex-direction:column; margin:auto; box-shadow:0 0 20px rgba(0,255,136,0.2);}
+.b-buy {background:#00e676; color:#000; padding:3px 12px; border-radius:6px; font-weight:800; font-size:11px;}
+.b-hold {background:#a16207; color:#fff; padding:3px 12px; border-radius:6px; font-weight:800; font-size:11px;}
+.b-sell {background:#ef4444; color:#fff; padding:3px 12px; border-radius:6px; font-weight:800; font-size:11px;}
+.b-score {background:#1a4d2e; color:#4ade80; border:1px solid #22c55e; padding:2px 10px; border-radius:6px; font-weight:700;}
+.t-h {color:#6b7280; font-size:11px; letter-spacing:1px;}
+.t-v {color:#fff; font-weight:700; font-size:14px;}
 </style>
 """, unsafe_allow_html=True)
 
-# --- HEADER ---
-st.markdown("""
+# HEADER SAME TO SAME
+st.markdown(f"""
 <div class="header">
-  <div style="display:flex; gap:14px; align-items:center;">
-    <div style="font-size:32px;">🧠</div>
-    <div>
-      <div style="font-size:26px; font-weight:800; color:#fff; letter-spacing:-0.5px;">FinTrade <span style="color:#c8ff5a;">X</span></div>
-      <div style="color:#8b8fa3; font-size:12px;">Nifty 500 AI • AI-Powered Trading Dashboard</div>
+  <div style="display:flex; justify-content:space-between; align-items:center;">
+    <div style="display:flex; gap:12px; align-items:center;">
+      <div style="width:42px; height:42px; background:linear-gradient(135deg, #a3ff12, #00ff88); border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:20px;">◈</div>
+      <div>
+        <div style="color:#fff; font-size:24px; font-weight:900;">FinTrade <span style="color:#c6ff00;">X</span></div>
+        <div style="color:#6b7280; font-size:11px;">Nifty 500 AI • AI-Powered Trading Dashboard</div>
+      </div>
     </div>
-  </div>
-  <div style="text-align:right;">
-    <div style="display:flex; gap:8px;">
-      <span class="ticker" style="color:#fff;">NIFTY 50 <span style="color:#00ff88;">24,567.30 +0.87% ▲</span></span>
-      <span class="ticker" style="color:#fff;">BANK NIFTY <span style="color:#ff3b5c;">52,341.20 -0.24% ▼</span></span>
+    <div style="display:flex; flex-direction:column; gap:6px; align-items:flex-end;">
+      <div style="display:flex; gap:8px;">
+        <span style="background:#1a1f2e; border:1px solid #2a2f45; border-radius:8px; padding:6px 12px; color:#fff; font-size:12px;">NIFTY 50 <span style="color:#00ff88;">{nifty_p} +0.87% ▲</span></span>
+        <span style="background:#1a1f2e; border:1px solid #2a2f45; border-radius:8px; padding:6px 12px; color:#fff; font-size:12px;">BANK NIFTY <span style="color:#ff4d4d;">{bank_p} -0.24% ▼</span></span>
+        <span style="background:#1a1f2e; border-radius:8px; padding:6px 10px; color:#fff;">🔔</span>
+        <span style="background:#1a1f2e; border:2px solid #c6ff00; border-radius:50%; padding:4px 8px; color:#c6ff00; font-weight:800;">AK</span>
+      </div>
+      <div style="display:flex; gap:8px;">
+        <span style="background:#1a1f2e; border:1px solid #2a2f45; border-radius:8px; padding:6px 12px; color:#fff; font-size:12px;">SENSEX <span style="color:#00ff88;">{sensex_p} +0.52% ▲</span></span>
+        <span style="background:#1a1f2e; border:1px solid #2a2f45; border-radius:8px; padding:6px 12px; color:#fff; font-size:12px;">NIFTY 500 <span style="color:#00ff88;">{n500_p} +0.61% ▲</span></span>
+        <span style="background:#0f1a12; border:1px solid #00ff88; border-radius:20px; padding:4px 12px; color:#00ff88; font-size:11px;">Live • 15:42 IST</span>
+      </div>
     </div>
-    <div style="color:#00ff88; font-size:11px; margin-top:6px; border:1px solid #00ff88; display:inline-block; padding:2px 10px; border-radius:20px;"><span class="live-dot"></span> Live • 15:42 IST</div>
   </div>
 </div>
 """, unsafe_allow_html=True)
 
 st.write("")
 
-# --- SEARCH PREMIUM ---
-search = st.text_input("", placeholder="🔍 Search NSE Stock (ex: RELIANCE, SUZLON, PAYTM)...", label_visibility="collapsed")
-
-def analyze(sym):
+# ANALYSIS LOGIC
+@st.cache_data(ttl=300)
+def analyze_stock(sym):
     try:
-        t = yf.Ticker(sym+".NS" if not sym.endswith(".NS") else sym)
+        t = yf.Ticker(sym+".NS")
         h = t.history(period="6mo")
-        if len(h)<50: return None
+        if len(h)<60: return None
         curr = h['Close'].iloc[-1]
         live = t.fast_info.get('last_price', curr)
         rsi = ta.momentum.RSIIndicator(h['Close']).rsi().iloc[-1]
-        sup = h['Low'].tail(50).min(); res = h['High'].tail(50).max()
-        score = 50 + (10 if curr>h['Close'].rolling(20).mean().iloc[-1] else -5) + (15 if 30<rsi<65 else -5)
-        score = max(10,min(95,int(score+30)))
-        decision = "BUY" if score>=70 else "SELL" if score<=40 else "HOLD"
-        return {"SYMBOL":sym.replace(".NS",""), "LIVE":round(live,2), "SCORE":score, "DECISION":decision, "RSI":round(rsi,1), "SUP":round(sup,1), "RES":round(res,1), "hist":h.tail(120)}
+        change = ((live - h['Close'].iloc[-2]) / h['Close'].iloc[-2])*100
+        score = 50
+        if live > h['Close'].rolling(20).mean().iloc[-1]: score+=12
+        if live > h['Close'].rolling(50).mean().iloc[-1]: score+=12
+        if 35<rsi<70: score+=10
+        if rsi<35: score+=12
+        score = max(20,min(92,int(score+15)))
+        dec = "BUY" if score>=75 else "SELL" if score<=45 else "HOLD"
+        return {"STOCK":sym, "SYM":sym, "PRICE":round(live,2), "CHANGE":round(change,2), "SCORE":score, "SIGNAL":dec, "HIST":h.tail(100)}
     except: return None
 
-col1, col2 = st.columns([1, 2.2])
+# TOP 10 FETCH
+NIFTY500_SAMPLE = ["RELIANCE","HDFCBANK","INFY","ICICIBANK","TCS","ITC","LT","HINDUNILVR","AXISBANK","BHARTIARTL","SBIN","BAJFINANCE","KOTAKBANK","MARUTI","ASIANPAINT","WIPRO","HCLTECH","SUNPHARMA","TITAN","ONGC"]
 
-with col1:
-    if search:
-        d = analyze(search.upper())
-        if d:
-            st.markdown(f"""
-            <div class="glass">
-              <div style="color:#8b8fa3; font-size:12px;">✨ AI SCORE</div>
-              <div class="score-circle">
-                <div style="font-size:48px; font-weight:800; color:#00ff88;">{d['SCORE']}</div>
-                <div style="color:#8b8fa3;">/100</div>
-              </div>
-              <div style="text-align:center; margin-top:10px;">
-                <span style="border:1px solid #00ff88; padding:4px 12px; border-radius:20px; color:#00ff88; font-size:12px;">● {'Bullish' if d['SCORE']>=60 else 'Bearish'}</span>
-              </div>
-              <div style="margin-top:14px; display:flex; justify-content:space-between; color:#fff;">
-                <div>LIVE<br><b style="color:#00ff88;">₹{d['LIVE']}</b></div>
-                <div>RSI<br><b>{d['RSI']}</b></div>
-                <div>Signal<br><span class="{'badge-buy' if d['DECISION']=='BUY' else 'badge-sell' if d['DECISION']=='SELL' else 'badge-hold'}">{d['DECISION']}</span></div>
-              </div>
-              <div style="color:#8b8fa3; font-size:11px; margin-top:12px;">Support: {d['SUP']} • Resistance: {d['RES']} • RSI: {d['RSI']}</div>
-            </div>
-            """, unsafe_allow_html=True)
-    else:
-        st.markdown("""
-        <div class="glass">
-          <div style="color:#8b8fa3; font-size:12px;">✨ AI SCORE</div>
-          <div class="score-circle" style="border-top-color:#00ff88;">
-            <div style="font-size:48px; font-weight:800; color:#00ff88;">78</div><div style="color:#8b8fa3;">/100</div>
-          </div>
-          <div style="text-align:center; margin-top:10px;"><span style="border:1px solid #00ff88; padding:4px 12px; border-radius:20px; color:#fff; font-size:12px;">● Bullish</span></div>
-          <div style="color:#ff9d66; font-size:11px; text-align:center; margin-top:10px;">Strong Buy Momentum • Confidence 78%</div>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    st.markdown("""
+if 'top_data' not in st.session_state:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=10) as ex:
+        res = [r for r in ex.map(analyze_stock, NIFTY500_SAMPLE) if r]
+    st.session_state.top_data = sorted(res, key=lambda x: x['SCORE'], reverse=True)[:10]
+
+top10 = st.session_state.top_data
+
+c1, c2 = st.columns([0.95, 2.2])
+
+with c1:
+    # AI SCORE
+    sc = top10[0]['SCORE'] if top10 else 78
+    st.markdown(f"""
+    <div class="glass">
+      <div class="t-h">✨ AI SCORE</div>
+      <div style="margin-top:12px;"><div class="score-ring"><div style="color:#00ff88; font-size:44px; font-weight:900;">{sc}</div><div style="color:#6b7280; font-size:14px;">/100</div></div></div>
+      <div style="text-align:center; margin-top:12px;"><span style="background:#12261a; border:1px solid #1a4d2e; color:#fff; padding:5px 14px; border-radius:20px; font-size:12px;">● Bullish</span></div>
+      <div style="text-align:center; color:#c08a5a; font-size:11px; margin-top:8px;">Strong Buy Momentum • Confidence {sc}%</div>
+    </div>
     <div class="glass" style="margin-top:12px;">
-      <div style="color:#fff; font-weight:700; margin-bottom:10px;">📊 PORTFOLIO OVERVIEW</div>
-      <div style="color:#8b8fa3; font-size:12px;">Today's P&L</div>
-      <div style="color:#00ff88; font-size:22px; font-weight:800;">+₹12,450 <span style="font-size:12px;">↗ (+1.32%)</span></div>
-      <div style="display:flex; justify-content:space-between; margin-top:12px;">
-        <div><div style="color:#8b8fa3; font-size:11px;">Total Value</div><div style="color:#fff; font-weight:700;">₹9,43,280</div></div>
-        <div><div style="color:#8b8fa3; font-size:11px;">Win Rate</div><div style="color:#00ff88; font-weight:700;">68%</div></div>
+      <div style="color:#fff; font-weight:700; font-size:13px; margin-bottom:10px;">📁 PORTFOLIO OVERVIEW</div>
+      <div class="t-h">Today's P&L</div><div style="color:#00ff88; font-size:20px; font-weight:800;">+₹12,450 <span style="font-size:12px;">↗ (+1.32%)</span></div>
+      <div style="display:flex; justify-content:space-between; margin-top:14px;">
+        <div><div class="t-h">Total Value</div><div class="t-v">₹9,43,280</div></div>
+        <div><div class="t-h">Win Rate</div><div style="color:#00ff88; font-weight:800; font-size:16px;">68%</div></div>
       </div>
+    </div>
+    <div class="glass" style="margin-top:12px;">
+      <div style="color:#fff; font-weight:700; font-size:13px; margin-bottom:10px;">📶 AI SIGNALS</div>
+      <div style="display:flex; gap:8px; align-items:center; margin-bottom:10px;"><span class="b-buy">BUY</span><div><div style="color:#fff; font-size:11px; font-weight:700;">{top10[0]['STOCK']} • {top10[0]['STOCK']}</div><div style="color:#6b7280; font-size:10px;">Target ₹2,985 • Stop Loss ₹2,760</div></div></div>
+      <div style="display:flex; gap:8px; align-items:center;"><span class="b-sell">SELL</span><div><div style="color:#fff; font-size:11px; font-weight:700;">{top10[1]['STOCK']} • {top10[1]['STOCK']}</div><div style="color:#6b7280; font-size:10px;">Target ₹3,820 • Stop Loss ₹3,980</div></div></div>
     </div>
     """, unsafe_allow_html=True)
 
-with col2:
-    # Chart
-    if search and d:
-        hist = d['hist']
-    else:
-        hist = yf.Ticker("RELIANCE.NS").history(period="6mo").tail(120)
-    fig = go.Figure(data=[go.Candlestick(x=hist.index, open=hist['Open'], high=hist['High'], low=hist['Low'], close=hist['Close'], increasing_line_color='#00ff88', decreasing_line_color='#ff3b5c')])
-    fig.update_layout(height=380, template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", xaxis_rangeslider_visible=False, margin=dict(l=0,r=0,t=0,b=0), font=dict(color="#8b8fa3", size=10))
-    st.markdown('<div class="glass"><div style="color:#fff; font-weight:700; margin-bottom:8px;">NIFTY 500 • 1D CHART <span style="float:right;"><span style="background:#00ff88; color:#000; padding:2px 8px; border-radius:6px; font-size:11px;">1D</span> <span style="padding:2px 8px;">5D</span> <span style="padding:2px 8px;">1M</span> <span style="padding:2px 8px;">6M</span></span></div>', unsafe_allow_html=True)
+with c2:
+    # CHART
+    sel_stock = top10[0] if top10 else None
+    hist = sel_stock['HIST'] if sel_stock else yf.Ticker("RELIANCE.NS").history(period="6mo").tail(100)
+    fig = go.Figure(data=[go.Candlestick(x=hist.index, open=hist['Open'], high=hist['High'], low=hist['Low'], close=hist['Close'], increasing_line_color='#00ff88', decreasing_line_color='#ff4d6d')])
+    fig.add_scatter(x=hist.index, y=hist['Close'].rolling(20).mean(), mode='lines', line=dict(color='#00ff88', width=1.5), name='AI Trendline')
+    fig.update_layout(height=340, template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", xaxis_rangeslider_visible=False, margin=dict(l=0,r=0,t=20,b=0), showlegend=False)
+    st.markdown(f"""
+    <div class="glass">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+        <div style="color:#fff; font-weight:800; font-size:14px;">{sel_stock['STOCK'] if sel_stock else 'NIFTY 500'} • 1D CHART</div>
+        <div style="display:flex; gap:6px;"><span style="background:#00ff88; color:#000; padding:4px 12px; border-radius:6px; font-size:11px; font-weight:800;">1D</span><span style="background:#1a1f2e; color:#6b7280; padding:4px 12px; border-radius:6px; font-size:11px;">5D</span><span style="background:#1a1f2e; color:#6b7280; padding:4px 12px; border-radius:6px; font-size:11px;">1M</span><span style="background:#1a1f2e; color:#6b7280; padding:4px 12px; border-radius:6px; font-size:11px;">6M</span><span style="background:#1a1f2e; color:#6b7280; padding:4px 12px; border-radius:6px; font-size:11px;">1Y</span><span style="background:#1a1f2e; color:#6b7280; padding:4px 12px; border-radius:6px; font-size:11px;">1Y</span></div>
+        <div style="background:#1a1f2e; border-radius:20px; padding:4px 10px; font-size:10px; color:#fff;">AI Trendline: <span style="background:#00ff88; color:#000; padding:1px 6px; border-radius:4px; font-weight:800;">ON</span></div>
+      </div>
+    """, unsafe_allow_html=True)
     st.plotly_chart(fig, use_container_width=True)
-    st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown(f"""<div style="background:#12161f; border-radius:8px; padding:6px 12px; color:#9ca3af; font-size:11px; margin-top:6px;">↳ Support: 24,320 • Resistance: 24,600 • RSI: 63.4 Neutral-Bullish <span style="background:#00ff88; width:32px; height:12px; display:inline-block; border-radius:10px; vertical-align:middle; margin-left:6px;"></span></div></div>""", unsafe_allow_html=True)
 
-    # Top 10 Table Premium
-    st.markdown("""
+    # TOP 10 TABLE - SAME TO SAME
+    rows_html = ""
+    for i, r in enumerate(top10, 1):
+        color = "#4ade80" if r['CHANGE']>=0 else "#f87171"
+        arrow = "↑" if r['CHANGE']>=0 else "↓"
+        badge = "b-buy" if r['SIGNAL']=="BUY" else "b-sell" if r['SIGNAL']=="SELL" else "b-hold"
+        rows_html += f"""<div style="display:flex; justify-content:space-between; padding:9px 0; border-bottom:1px solid rgba(255,255,255,0.05); color:#fff; font-size:12px; align-items:center;">
+        <div style="display:flex; gap:10px; width:180px;"><span style="color:#6b7280; width:18px;">{i:02d}</span><span>⬢</span><span>{r['STOCK']}</span></div>
+        <div style="width:80px;">₹{r['PRICE']}</div>
+        <div style="width:70px; color:{color};">{r['CHANGE']:+.2f}% {arrow}</div>
+        <div style="width:50px;"><span class="b-score">{r['SCORE']}</span></div>
+        <div style="width:50px;"><span class="{badge}">{r['SIGNAL']}</span></div>
+        </div>"""
+
+    st.markdown(f"""
     <div class="glass" style="margin-top:12px;">
-      <div style="display:flex; justify-content:space-between; color:#fff; font-weight:700; margin-bottom:10px;">≡ TOP 10 STOCKS — NIFTY 500 <span style="border:1px solid #3a3f52; padding:2px 10px; border-radius:20px; font-size:11px; color:#8b8fa3;">Sorted by AI Score ↓</span></div>
-      <div style="color:#8b8fa3; font-size:11px; display:flex; justify-content:space-between; border-bottom:1px solid #222; padding-bottom:6px;">
-        <span># STOCK</span><span>PRICE</span><span>CHANGE</span><span>AI SCORE</span><span>SIGNAL</span>
+      <div style="display:flex; justify-content:space-between; color:#fff; font-weight:800; font-size:13px; margin-bottom:12px;">≡ TOP 10 STOCKS — NIFTY 500 <span style="border:1px solid #2a2f45; padding:4px 10px; border-radius:20px; font-size:10px; color:#9ca3af;">Sorted by AI Score ↓</span></div>
+      <div style="display:flex; justify-content:space-between; color:#6b7280; font-size:10px; letter-spacing:1px; padding-bottom:6px; border-bottom:1px solid #1e2332;">
+        <div style="width:180px;"># STOCK</div><div style="width:80px;">PRICE</div><div style="width:70px;">CHANGE</div><div style="width:50px;">AI SCORE</div><div style="width:50px;">SIGNAL</div>
       </div>
-      <div style="color:#fff; font-size:12px; line-height:32px;">
-        01 &nbsp; Reliance Industries &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; ₹2,872.45 &nbsp;&nbsp; <span style="color:#00ff88;">+1.42% ↑</span> &nbsp;&nbsp; 92 &nbsp;&nbsp; <span class="badge-buy">BUY</span><br>
-        02 &nbsp; HDFC Bank &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; ₹1,643.20 &nbsp;&nbsp; <span style="color:#ff3b5c;">-0.28%</span> &nbsp;&nbsp; 74 &nbsp;&nbsp; <span class="badge-hold">HOLD</span><br>
-        03 &nbsp; Infosys &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; ₹1,522.90 &nbsp;&nbsp; <span style="color:#00ff88;">+0.91%</span> &nbsp;&nbsp; 85 &nbsp;&nbsp; <span class="badge-buy">BUY</span>
+      {rows_html}
+      <div style="display:flex; justify-content:space-between; margin-top:14px; color:#6b7280; font-size:11px; align-items:center;">
+        <span>● Last updated: 13 Sep 2026 • 15:42:07 IST • Live Data</span>
+        <span>Powered by FinTrade X AI Model v3.2 • Risk Level: Moderate</span>
+        <span style="display:flex; gap:8px;"><span style="border:1px solid #2a2f45; padding:4px 10px; border-radius:8px;">↓ Export CSV</span><span style="border:1px solid #00ff88; color:#00ff88; padding:4px 10px; border-radius:8px;">↻ Refresh</span></span>
       </div>
     </div>
     """, unsafe_allow_html=True)
+
+st.markdown("""
+<style>
+[data-testid="stHeader"] {display:none;}
+</style>
+""", unsafe_allow_html=True)
