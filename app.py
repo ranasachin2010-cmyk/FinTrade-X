@@ -1,12 +1,9 @@
 import streamlit as st
 import yfinance as yf
 import pandas as pd
-import pandas as ta
 import plotly.graph_objects as go
-from textblob import TextBlob
 import requests
 
-# --- Page Config ---
 st.set_page_config(page_title="AI Stock Analyzer Pro", layout="wide")
 st.title("🤖 AI Stock Analyzer Pro - Indian Market")
 
@@ -18,7 +15,23 @@ st.sidebar.subheader("🔔 Price Alert")
 alert_high = st.sidebar.number_input("Alert above", value=650.0)
 alert_low = st.sidebar.number_input("Alert below", value=550.0)
 
-# --- Functions ---
+# --- Indicators without pandas_ta ---
+def rsi_calc(series, length=14):
+    delta = series.diff()
+    gain = delta.where(delta > 0, 0)
+    loss = -delta.where(delta < 0, 0)
+    avg_gain = gain.ewm(com=length-1, min_periods=length).mean()
+    avg_loss = loss.ewm(com=length-1, min_periods=length).mean()
+    rs = avg_gain / avg_loss
+    return 100 - (100 / (1 + rs))
+
+def macd_calc(series):
+    ema12 = series.ewm(span=12, adjust=False).mean()
+    ema26 = series.ewm(span=26, adjust=False).mean()
+    macd = ema12 - ema26
+    signal = macd.ewm(span=9, adjust=False).mean()
+    return macd, signal
+
 def get_fundamentals(symbol):
     try:
         t = yf.Ticker(symbol + ".NS")
@@ -31,7 +44,7 @@ def get_fundamentals(symbol):
             "div": info.get("dividendYield", "N/A")
         }
     except:
-        return {}
+        return {"pe":"N/A","mcap":"N/A","high52":"N/A","low52":"N/A","div":"N/A"}
 
 def analyze_stock(symbol, tf):
     df = yf.download(symbol + ".NS", period=tf, interval="1d", progress=False)
@@ -39,12 +52,11 @@ def analyze_stock(symbol, tf):
         return None
     if isinstance(df.columns, pd.MultiIndex):
         df.columns = df.columns.get_level_values(0)
-    df['RSI'] = ta.rsi(df['Close'], length=14)
-    macd = ta.macd(df['Close'])
-    df['MACD'] = macd['MACD_12_26_9']
-    df['MACDs'] = macd['MACDs_12_26_9']
-    df['EMA20'] = ta.ema(df['Close'], length=20)
-    df['EMA50'] = ta.ema(df['Close'], length=50)
+
+    df['RSI'] = rsi_calc(df['Close'])
+    df['MACD'], df['MACDs'] = macd_calc(df['Close'])
+    df['EMA20'] = df['Close'].ewm(span=20, adjust=False).mean()
+    df['EMA50'] = df['Close'].ewm(span=50, adjust=False).mean()
 
     last = df.iloc[-1]
     rsi = float(last['RSI'])
@@ -66,13 +78,9 @@ def analyze_stock(symbol, tf):
     elif score < 0: signal = "SELL 🔴"
     else: signal = "HOLD 🟡"
 
-    # Target / Stoploss
-    recent_high = float(df['High'].tail(20).max())
-    recent_low = float(df['Low'].tail(20).min())
-    target = round(recent_high, 2)
-    stoploss = round(recent_low, 2)
+    target = round(float(df['High'].tail(20).max()), 2)
+    stoploss = round(float(df['Low'].tail(20).min()), 2)
 
-    # Backtest simple
     df['Signal'] = 0
     df.loc[(df['RSI']<35) & (df['MACD']>df['MACDs']), 'Signal'] = 1
     df.loc[(df['RSI']>70) | (df['MACD']<df['MACDs']), 'Signal'] = -1
@@ -91,10 +99,8 @@ if st.sidebar.button("Scan Top BUY Signals"):
     for s in screen_list:
         try:
             out = analyze_stock(s, timeframe)
-            if out:
-                _,_,_,_,sig,_,_,_,_ = out
-                if "BUY" in sig:
-                    results.append((s,sig))
+            if out and "BUY" in out[4]:
+                results.append((s, out[4]))
         except: pass
     if results:
         st.sidebar.success("BUY Signals:")
@@ -103,19 +109,18 @@ if st.sidebar.button("Scan Top BUY Signals"):
     else:
         st.sidebar.info("No STRONG BUY right now")
 
-# --- Main ---
+# --- Main Loop ---
 symbols = [x.strip().upper() for x in symbols_input.split(",") if x.strip()]
 
 for sym in symbols:
     st.header(f"📊 {sym}")
     out = analyze_stock(sym, timeframe)
     if not out:
-        st.error(f"{sym} ka data nahi mila. Symbol check karo (jaise PCJEWELLER)")
+        st.error(f"{sym} ka data nahi mila. Symbol check karo")
         continue
     df, rsi, macd_bull, above_ema20, signal, target, stoploss, ai_ret, bh_ret = out
     price = float(df['Close'].iloc[-1])
 
-    # Price Alert
     if price >= alert_high:
         st.warning(f"🔔 {sym} {alert_high} ke upar hai! Price: {price:.2f}")
     if price <= alert_low:
@@ -129,7 +134,6 @@ for sym in symbols:
     if "BUY" in signal:
         st.success(f"🎯 Target: ₹{target} | 🛑 Stop-Loss: ₹{stoploss}")
 
-    # Fundamentals
     fund = get_fundamentals(sym)
     st.subheader("💰 Fundamentals")
     c1,c2,c3,c4 = st.columns(4)
@@ -138,21 +142,18 @@ for sym in symbols:
     c3.write(f"52W Low: {fund.get('low52')}")
     c4.write(f"Div Yield: {fund.get('div')}")
 
-    # Backtest
     st.subheader("🧪 Backtesting")
     b1,b2 = st.columns(2)
     b1.metric("AI Strategy Return", f"{ai_ret:.2f}%")
     b2.metric("Buy & Hold Return", f"{bh_ret:.2f}%")
-    winner = "AI 🤖" if ai_ret > bh_ret else "Buy&Hold"
-    st.write(f"Winner: **{winner}** - " + ("AI ne market ko beat kiya!" if ai_ret>bh_ret else "Market hold karna better raha."))
+    winner = "AI 🤖" if ai_ret > bh_ret else "Buy & Hold"
+    st.write(f"Winner: **{winner}**")
 
-    # Chart
-    st.subheader("RSI & MACD Chart + Support/Resistance")
+    st.subheader("Chart + Support/Resistance")
     fig = go.Figure()
     fig.add_trace(go.Candlestick(x=df.index, open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'], name="Price"))
     fig.add_trace(go.Scatter(x=df.index, y=df['EMA20'], line=dict(color='orange'), name="EMA20"))
     fig.add_trace(go.Scatter(x=df.index, y=df['EMA50'], line=dict(color='blue'), name="EMA50"))
-    # Support Resistance
     res = df['High'].tail(30).max()
     sup = df['Low'].tail(30).min()
     fig.add_hline(y=res, line_dash="dot", line_color="red", annotation_text="Resistance")
