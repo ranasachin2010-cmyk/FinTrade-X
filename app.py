@@ -86,6 +86,8 @@ def analyze_stock(symbol, tf):
     else: signal = "HOLD 🟡"
     target = round(float(df['High'].tail(20).max()), 2)
     stoploss = round(float(df['Low'].tail(20).min()), 2)
+    res = round(float(df['High'].tail(30).max()), 2)
+    sup = round(float(df['Low'].tail(30).min()), 2)
     df['Signal'] = 0
     df.loc[(df['RSI']<35) & (df['MACD']>df['MACDs']), 'Signal'] = 1
     df.loc[(df['RSI']>70) | (df['MACD']<df['MACDs']), 'Signal'] = -1
@@ -93,7 +95,7 @@ def analyze_stock(symbol, tf):
     df['Strat'] = df['Signal'].shift(1) * df['Returns']
     ai_ret = (1+df['Strat'].fillna(0)).prod()-1
     bh_ret = (1+df['Returns'].fillna(0)).prod()-1
-    return df, rsi, signal, target, stoploss, ai_ret*100, bh_ret*100
+    return df, rsi, signal, target, stoploss, res, sup, ai_ret*100, bh_ret*100
 
 st.sidebar.subheader("🔍 Screener")
 if st.sidebar.button("Scan Top BUY Signals"):
@@ -120,13 +122,14 @@ for sym in symbols:
     if not out:
         st.error(f"{sym} ka data nahi mila")
         continue
-    df, rsi, signal, target, stoploss, ai_ret, bh_ret = out
+    df, rsi, signal, target, stoploss, res, sup, ai_ret, bh_ret = out
     price = float(df['Close'].iloc[-1])
     c1,c2,c3 = st.columns(3)
     c1.metric("Price", f"₹{price:.2f}")
     c2.metric("RSI", f"{rsi:.1f}")
     c3.metric("AI Signal", signal)
     st.success(f"🎯 Target: ₹{target} | 🛑 Stop-Loss: ₹{stoploss}")
+    st.info(f"🟥 Resistance: ₹{res:.2f} | 🟩 Support: ₹{sup:.2f}")
     fund = get_fundamentals(sym)
     st.subheader("💰 Fundamentals")
     f1,f2,f3,f4 = st.columns(4)
@@ -147,13 +150,12 @@ for sym in symbols:
     else:
         st.write("News nahi mili")
     st.subheader("📈 Candlestick Chart + Support/Resistance")
+    st.write(f"🟥 Resistance: ₹{res:.2f} | 🟩 Support: ₹{sup:.2f}")
     fig = go.Figure()
     fig.add_trace(go.Candlestick(x=df.index, open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'], name="Price"))
     fig.add_trace(go.Scatter(x=df.index, y=df['EMA20'], line=dict(color='orange'), name="EMA20"))
     fig.add_trace(go.Scatter(x=df.index, y=df['EMA50'], line=dict(color='blue'), name="EMA50"))
-    res = float(df['High'].tail(30).max())
-    sup = float(df['Low'].tail(30).min())
-    fig.add_hline(y=res, line_dash="dot", line_color="red", annotation_text="Resistance")
-    fig.add_hline(y=sup, line_dash="dot", line_color="green", annotation_text="Support")
+    fig.add_hline(y=res, line_dash="dot", line_color="red", annotation_text=f"Resistance: ₹{res:.2f}")
+    fig.add_hline(y=sup, line_dash="dot", line_color="green", annotation_text=f"Support: ₹{sup:.2f}")
     fig.update_layout(height=500, xaxis_rangeslider_visible=False)
     st.plotly_chart(fig, use_container_width=True)
