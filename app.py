@@ -134,7 +134,10 @@ if mode=="Nifty 50 Scanner":
             bar.progress((i+1)/len(NIFTY50))
         rdf=pd.DataFrame(results).sort_values("Score",ascending=False)
         st.dataframe(rdf,use_container_width=True)
-        st.success(f"Top Pick: {rdf.iloc[0]['Symbol']} - {rdf.iloc[0]['Signal']}") if not rdf.empty else st.warning("No data")
+        if not rdf.empty:
+            st.success(f"Top Pick: {rdf.iloc[0]['Symbol']} - {rdf.iloc[0]['Signal']}")
+        else:
+            st.warning("No data")
 else:
     sym=st.sidebar.text_input("NSE Symbol","HUDCO").strip().upper()
     df=yf.download(sym+".NS",period=timeframe,progress=False)
