@@ -1,11 +1,2 @@
-streamlit
-yfinance
-pandas
-ta
-textblob
-plotly
-requests
-streamlit-autorefresh
-scikit-learn
 pip install streamlit yfinance plotly
 streamlit run app.py
