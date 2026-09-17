@@ -1,7 +1,7 @@
 import streamlit as st
 import yfinance as yf
 import pandas as pd
-import pandas_ta as ta
+import pandas as ta
 import plotly.graph_objects as go
 from textblob import TextBlob
 import requests
