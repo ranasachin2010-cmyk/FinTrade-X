@@ -11,9 +11,6 @@ st.title("🤖 AI Stock Analyzer Pro - Indian Market")
 st.sidebar.header("Settings")
 symbols_input = st.sidebar.text_input("NSE Symbols (comma separated)", "RELIANCE,TCS,ATGL,PCJEWELLER")
 timeframe = st.sidebar.selectbox("Timeframe", ["1mo","3mo","6mo","1y"], index=1)
-st.sidebar.subheader("🔔 Price Alert")
-alert_high = st.sidebar.number_input("Alert above", value=650.0)
-alert_low = st.sidebar.number_input("Alert below", value=550.0)
 
 # --- Indicators without pandas_ta ---
 def rsi_calc(series, length=14):
@@ -38,13 +35,12 @@ def get_fundamentals(symbol):
         info = t.info
         return {
             "pe": info.get("trailingPE", "N/A"),
-            "mcap": info.get("marketCap", "N/A"),
             "high52": info.get("fiftyTwoWeekHigh", "N/A"),
             "low52": info.get("fiftyTwoWeekLow", "N/A"),
             "div": info.get("dividendYield", "N/A")
         }
     except:
-        return {"pe":"N/A","mcap":"N/A","high52":"N/A","low52":"N/A","div":"N/A"}
+        return {"pe":"N/A","high52":"N/A","low52":"N/A","div":"N/A"}
 
 def analyze_stock(symbol, tf):
     df = yf.download(symbol + ".NS", period=tf, interval="1d", progress=False)
@@ -120,11 +116,6 @@ for sym in symbols:
         continue
     df, rsi, macd_bull, above_ema20, signal, target, stoploss, ai_ret, bh_ret = out
     price = float(df['Close'].iloc[-1])
-
-    if price >= alert_high:
-        st.warning(f"🔔 {sym} {alert_high} ke upar hai! Price: {price:.2f}")
-    if price <= alert_low:
-        st.warning(f"🔔 {sym} {alert_low} ke neeche hai! Price: {price:.2f}")
 
     col1,col2,col3 = st.columns(3)
     col1.metric("Price", f"₹{price:.2f}")
