@@ -50,8 +50,8 @@ def get_news(symbol):
             click = c.get('clickThroughUrl') or {}
             link = click.get('url') if isinstance(click, dict) else None
             link = link or n.get('link') or "#"
-            # provider name
-            provider = c.get('provider', {}).get('displayName', '') if isinstance(c.get('provider'), dict) else ''
+            prov_dict = c.get('provider') or {}
+            provider = prov_dict.get('displayName', '') if isinstance(prov_dict, dict) else ''
             out.append({"title": title, "link": link, "provider": provider})
         return out
     except:
@@ -142,7 +142,8 @@ for sym in symbols:
     news_list = get_news(sym)
     if news_list:
         for n in news_list:
-            st.write(f"- [{n['title']}]({n['link']}) {f\"({n['provider']})\" if n['provider'] else ''}")
+            prov = "(" + n['provider'] + ")" if n['provider'] else ""
+            st.write(f"- [{n['title']}]({n['link']}) {prov}")
     else:
         st.write("News nahi mili")
     st.subheader("📈 Candlestick Chart + Support/Resistance")
