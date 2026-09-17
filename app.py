@@ -60,7 +60,6 @@ def ml_predict(df):
     except: return None,None
 
 def backtest(df):
-    # Simple: BUY when RSI<30, SELL when RSI>70
     trades=[]; pos=False; buy=0
     for i in range(1,len(df)):
         r=df['RSI'].iloc[i]
@@ -73,14 +72,40 @@ def backtest(df):
     win=sum(1 for t in trades if t>0)/len(trades)*100
     return len(trades), round(win,1), round(sum(trades),1)
 
+def get_fundamentals(symbol):
+    try:
+        t = yf.Ticker(symbol + ".NS")
+        info = t.info
+        return {"pe": info.get("trailingPE","N/A"), "high52": info.get("fiftyTwoWeekHigh","N/A"), "low52": info.get("fiftyTwoWeekLow","N/A"), "div": info.get("dividendYield","N/A")}
+    except:
+        return {"pe":"N/A","high52":"N/A","low52":"N/A","div":"N/A"}
+
+def get_news(symbol):
+    try:
+        t = yf.Ticker(symbol + ".NS")
+        raw = t.news[:5]
+        out = []
+        for n in raw:
+            c = n.get('content', {})
+            title = c.get('title') or n.get('title') or "No title"
+            click = c.get('clickThroughUrl') or {}
+            link = click.get('url') if isinstance(click, dict) else None
+            link = link or n.get('link') or "#"
+            prov_dict = c.get('provider') or {}
+            provider = prov_dict.get('displayName','') if isinstance(prov_dict, dict) else ''
+            out.append({"title":title,"link":link,"provider":provider})
+        return out
+    except:
+        return []
+
 def plot_chart(df,res,sup):
     fig=make_subplots(rows=3,cols=1,shared_xaxes=True,row_heights=[0.6,0.2,0.2],vertical_spacing=0.05,
         subplot_titles=("Price + EMA + S/R","RSI","MACD"))
     fig.add_trace(go.Candlestick(x=df.index,open=df['Open'],high=df['High'],low=df['Low'],close=df['Close'],name="Price"),row=1,col=1)
     fig.add_trace(go.Scatter(x=df.index,y=df['EMA20'],line=dict(color='orange'),name="EMA20"),row=1,col=1)
     fig.add_trace(go.Scatter(x=df.index,y=df['EMA50'],line=dict(color='blue'),name="EMA50"),row=1,col=1)
-    fig.add_hline(y=res,line_dash="dot",line_color="red",row=1,col=1)
-    fig.add_hline(y=sup,line_dash="dot",line_color="green",row=1,col=1)
+    fig.add_hline(y=res,line_dash="dot",line_color="red",annotation_text=f"R:{res:.2f}", row=1,col=1)
+    fig.add_hline(y=sup,line_dash="dot",line_color="green",annotation_text=f"S:{sup:.2f}", row=1,col=1)
     fig.add_trace(go.Scatter(x=df.index,y=df['RSI'],line=dict(color='purple'),name="RSI"),row=2,col=1)
     fig.add_hline(y=70,line_dash="dash",line_color="red",row=2,col=1)
     fig.add_hline(y=30,line_dash="dash",line_color="green",row=2,col=1)
@@ -89,7 +114,6 @@ def plot_chart(df,res,sup):
     fig.update_layout(height=700,xaxis_rangeslider_visible=False,showlegend=False)
     return fig
 
-# --- NIFTY 50 SCANNER ---
 NIFTY50=["RELIANCE","HDFCBANK","TCS","INFY","ICICIBANK","SBIN","TATAMOTORS","LT","AXISBANK","KOTAKBANK","NTPC","ONGC","POWERGRID","TITAN","SUNPHARMA","ULTRACEMCO","MARUTI","BAJFINANCE","HINDUNILVR","ADANIENT"]
 
 if mode=="Nifty 50 Scanner":
@@ -120,6 +144,7 @@ else:
     sig,score=get_signal(df)
     price=float(df['Close'].iloc[-1]); rsi=float(df['RSI'].iloc[-1])
     res=float(df['High'].tail(30).max()); sup=float(df['Low'].tail(30).min())
+    target=res; stoploss=sup
     pred,acc=ml_predict(df)
     n_trades,win_rate,total_ret=backtest(df)
 
@@ -129,8 +154,29 @@ else:
     c3.metric("Signal",sig); c4.metric("ML Pred",f"₹{pred}" if pred else "N/A")
     if pred: st.info(f"ML Next Day: ₹{pred} ({(pred-price)/price*100:+.2f}%) | Acc: {acc}%")
 
+    st.success(f"🎯 Target: ₹{target:.2f} | 🛑 Stop-Loss: ₹{stoploss:.2f}")
+    st.warning(f"🟥 Resistance: ₹{res:.2f} | 🟩 Support: ₹{sup:.2f}")
+
+    fund = get_fundamentals(sym)
+    st.subheader("💰 Fundamentals")
+    f1,f2,f3,f4 = st.columns(4)
+    f1.write(f"P/E: {fund.get('pe')}")
+    f2.write(f"52W High: {fund.get('high52')}")
+    f3.write(f"52W Low: {fund.get('low52')}")
+    f4.write(f"Div Yield: {fund.get('div')}")
+
+    st.subheader("📰 Latest News")
+    news_list = get_news(sym)
+    if news_list:
+        for n in news_list:
+            prov = "("+n['provider']+")" if n['provider'] else ""
+            st.write(f"- [{n['title']}]({n['link']}) {prov}")
+    else:
+        st.write("News nahi mili")
+
     st.subheader("📊 Backtest (RSI<30 Buy, RSI>70 Sell)")
     b1,b2,b3=st.columns(3)
     b1.metric("Total Trades",n_trades); b2.metric("Win Rate",f"{win_rate}%"); b3.metric("Total Return",f"{total_ret}%")
 
+    st.subheader("📈 Chart with RSI + MACD")
     st.plotly_chart(plot_chart(df,res,sup),use_container_width=True)
