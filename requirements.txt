@@ -1,6 +1,7 @@
 streamlit
 yfinance
-plotly
 pandas
-numpy
+pandas_ta
+plotly
+textblob
 requests
